@@ -16,10 +16,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: [
-      "http://127.0.0.1:[본인의 포트번호]",
-      "http://localhost:[본인의 포트번호]",
-    ],
+    origin: ["http://127.0.0.1:5501", "http://localhost:5501"],
     methods: ["OPTIONS", "POST", "GET", "DELETE"],
     credentials: true,
   })
@@ -42,8 +39,16 @@ app.post("/", (req, res) => {
   } else {
     // 1. 유저정보가 있는 경우 accessToken을 발급하는 로직을 작성하세요.(sign)
     // 이곳에 코드를 작성하세요.
+    const accessToken = jwt.sign({ userId: userInfo.user_id }, secretKey, {
+      expiresIn: "10h",
+    });
     // 2. 응답으로 accessToken을 클라이언트로 전송하세요. (res.send 사용)
     // 이곳에 코드를 작성하세요.
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: false,
+    });
+    return res.status(200).send(accessToken);
   }
 });
 
@@ -51,8 +56,28 @@ app.post("/", (req, res) => {
 app.get("/", (req, res) => {
   // 3. req headers에 담겨있는 accessToken을 검증하는 로직을 작성하세요.(verify)
   // 이곳에 코드를 작성하세요.
-  // 4. 검증이 완료되면 유저정보를 클라이언트로 전송하세요.(res.send 사용)
-  // 이곳에 코드를 작성하세요.
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(403).send("토큰이 없습니다.");
+
+  const token = authHeader.split(" ")[1];
+  try {
+    const payload = jwt.verify(token, secretKey);
+    const userInfo = users.find((el) => el.user_id === payload.userId);
+    if (!userInfo) {
+      return res.status(404).send("유저 정보를 찾을 수 없습니다.");
+    }
+    // 4. 검증이 완료되면 유저정보를 클라이언트로 전송하세요.(res.send 사용)
+    // 이곳에 코드를 작성하세요.
+    return res.status(200).send(userInfo);
+  } catch (err) {
+    // 토큰 검증 실패 시
+    return res.status(403).send("유효하지 않은 토큰입니다.");
+  }
+});
+
+app.delete("/", (req, res) => {
+  res.clearCookie("accessToken");
+  res.send("토큰 삭제 완료!");
 });
 
 app.listen(3000, () => console.log("서버 실행!"));
